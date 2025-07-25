@@ -12,9 +12,9 @@ from .models import (
     WorkflowState,
     ProjectPlan,
     ModuleStructure,
-    TestPlan,
+    TestingPlan,
     CodeArtifact,
-    TestResult,
+    TestingResult,
 )
 
 logger = logging.getLogger(__name__)
@@ -146,7 +146,7 @@ class SharedDataStore:
         """
         with self._lock:
             input_data = {
-                "project_context": self._project_context.dict(),
+                "project_context": self._project_context.model_dump(),
                 "timestamp": datetime.now().isoformat(),
             }
 
@@ -158,38 +158,38 @@ class SharedDataStore:
                 # Module design agent needs project plan
                 if self._project_context.project_plan:
                     input_data["project_plan"] = (
-                        self._project_context.project_plan.dict()
+                        self._project_context.project_plan.model_dump()
                     )
             elif agent_name == "TestPlanningAgent":
                 # Test planning agent needs module structure
                 if self._project_context.module_structure:
                     input_data["module_structure"] = (
-                        self._project_context.module_structure.dict()
+                        self._project_context.module_structure.model_dump()
                     )
             elif agent_name == "CodeImplementationAgent":
                 # Code implementation agent needs both module structure and test plans
                 if self._project_context.module_structure:
                     input_data["module_structure"] = (
-                        self._project_context.module_structure.dict()
+                        self._project_context.module_structure.model_dump()
                     )
                 input_data["test_plans"] = [
-                    tp.dict() for tp in self._project_context.test_plans
+                    tp.model_dump() for tp in self._project_context.test_plans
                 ]
             elif agent_name == "TestingAgent":
                 # Testing agent needs code artifacts and test plans
                 input_data["code_artifacts"] = [
-                    ca.dict() for ca in self._project_context.code_artifacts
+                    ca.model_dump() for ca in self._project_context.code_artifacts
                 ]
                 input_data["test_plans"] = [
-                    tp.dict() for tp in self._project_context.test_plans
+                    tp.model_dump() for tp in self._project_context.test_plans
                 ]
             elif agent_name == "CodeRefinementAgent":
                 # Refinement agent needs test results and code artifacts
                 input_data["test_results"] = [
-                    tr.dict() for tr in self._project_context.test_results
+                    tr.model_dump() for tr in self._project_context.test_results
                 ]
                 input_data["code_artifacts"] = [
-                    ca.dict() for ca in self._project_context.code_artifacts
+                    ca.model_dump() for ca in self._project_context.code_artifacts
                 ]
 
             return input_data
@@ -202,7 +202,7 @@ class SharedDataStore:
             Current project context
         """
         with self._lock:
-            return self._project_context.copy(deep=True)
+            return self._project_context.model_copy(deep=True)
 
     def update_workflow_state(self, workflow_state: WorkflowState) -> None:
         """
@@ -274,7 +274,7 @@ class SharedDataStore:
             elif output_type == "module_structure":
                 self._project_context.module_structure = ModuleStructure(**data)
             elif output_type == "test_plan":
-                test_plan = TestPlan(**data)
+                test_plan = TestingPlan(**data)
                 # Replace existing test plan for the same module or add new one
                 existing_index = None
                 for i, tp in enumerate(self._project_context.test_plans):
@@ -301,10 +301,10 @@ class SharedDataStore:
                     self._project_context.code_artifacts.append(code_artifact)
             elif output_type == "test_results":
                 if isinstance(data, list):
-                    test_results = [TestResult(**result) for result in data]
+                    test_results = [TestingResult(**result) for result in data]
                     self._project_context.test_results.extend(test_results)
                 else:
-                    test_result = TestResult(**data)
+                    test_result = TestingResult(**data)
                     self._project_context.test_results.append(test_result)
 
             self._project_context.update_timestamp()
@@ -338,13 +338,13 @@ class SharedDataStore:
             # Save project context
             context_file = self._storage_path / "project_context.json"
             with open(context_file, "w") as f:
-                json.dump(self._project_context.dict(), f, indent=2, default=str)
+                json.dump(self._project_context.model_dump(), f, indent=2, default=str)
 
             # Save agent outputs
             outputs_file = self._storage_path / "agent_outputs.json"
             serializable_outputs = {}
             for agent_name, outputs in self._agent_outputs.items():
-                serializable_outputs[agent_name] = [output.dict() for output in outputs]
+                serializable_outputs[agent_name] = [output.model_dump() for output in outputs]
 
             with open(outputs_file, "w") as f:
                 json.dump(serializable_outputs, f, indent=2, default=str)

@@ -736,10 +736,10 @@ class MultiAgentCoordinator:
         rollback_point = {
             "timestamp": datetime.now().isoformat(),
             "agent_name": agent_name,
-            "workflow_state": self._current_workflow.dict()
+            "workflow_state": self._current_workflow.model_dump()
             if self._current_workflow
             else None,
-            "project_context": self.data_store.get_project_context().dict(),
+            "project_context": self.data_store.get_project_context().model_dump(),
             "completed_agents": self._current_workflow.completed_agents.copy()
             if self._current_workflow
             else [],

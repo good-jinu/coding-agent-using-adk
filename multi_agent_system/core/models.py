@@ -1,7 +1,7 @@
 """Shared data models for the multi-agent system."""
 
 from typing import List, Dict, Any, Optional
-from pydantic import BaseModel, Field, validator
+from pydantic import field_validator, BaseModel, Field
 from datetime import datetime
 from enum import Enum
 
@@ -15,7 +15,24 @@ class ProjectComplexity(str, Enum):
     VERY_HIGH = "very_high"
 
 
-class TestType(str, Enum):
+class RequirementType(str, Enum):
+    """Types of project requirements."""
+
+    FUNCTIONAL = "functional"
+    NON_FUNCTIONAL = "non_functional"
+    TECHNICAL = "technical"
+
+
+class RequirementPriority(str, Enum):
+    """Priority levels for requirements."""
+
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    CRITICAL = "critical"
+
+
+class UnitTestType(str, Enum):
     """Types of tests."""
 
     UNIT = "unit"
@@ -24,13 +41,23 @@ class TestType(str, Enum):
     PERFORMANCE = "performance"
 
 
-class TestStatus(str, Enum):
+# Aliases for backward compatibility
+TestType = UnitTestType
+TestingType = UnitTestType
+
+
+class UnitTestStatus(str, Enum):
     """Test execution status."""
 
     PASSED = "passed"
     FAILED = "failed"
     ERROR = "error"
     SKIPPED = "skipped"
+
+
+# Aliases for backward compatibility
+TestStatus = UnitTestStatus
+TestingStatus = UnitTestStatus
 
 
 class WorkflowStatus(str, Enum):
@@ -43,47 +70,90 @@ class WorkflowStatus(str, Enum):
     CANCELLED = "cancelled"
 
 
+class ProjectRequirement(BaseModel):
+    """Individual project requirement."""
+
+    id: str = Field(..., description="Unique requirement identifier")
+    type: RequirementType = Field(..., description="Type of requirement")
+    description: str = Field(..., description="Requirement description")
+    priority: RequirementPriority = Field(..., description="Requirement priority")
+    category: str = Field(..., description="Requirement category")
+    acceptance_criteria: List[str] = Field(
+        default_factory=list, description="Acceptance criteria for the requirement"
+    )
+
+    @field_validator("description")
+    @classmethod
+    def validate_description(cls, v):
+        if not v or not v.strip():
+            raise ValueError("Requirement description cannot be empty")
+        return v.strip()
+
+
+class TechnologyStack(BaseModel):
+    """Technology stack recommendation."""
+
+    primary_language: str = Field(..., description="Primary programming language")
+    frameworks: List[str] = Field(
+        default_factory=list, description="Recommended frameworks"
+    )
+    databases: List[str] = Field(
+        default_factory=list, description="Recommended databases"
+    )
+    tools: List[str] = Field(
+        default_factory=list, description="Development and deployment tools"
+    )
+    justification: str = Field(..., description="Justification for technology choices")
+
+
 class ProjectPlan(BaseModel):
     """Project planning data model."""
 
     project_name: str = Field(..., description="Name of the project")
     description: str = Field(..., description="Detailed project description")
-    requirements: List[str] = Field(
+    project_type: str = Field(..., description="Type of project")
+    target_users: List[str] = Field(
+        default_factory=list, description="Target user groups"
+    )
+    requirements: List[ProjectRequirement] = Field(
         default_factory=list, description="List of project requirements"
     )
-    scope: str = Field(..., description="Project scope definition")
-    estimated_complexity: ProjectComplexity = Field(
-        ..., description="Estimated project complexity"
+    technology_stack: TechnologyStack = Field(
+        ..., description="Recommended technology stack"
     )
-    target_language: str = Field(..., description="Primary programming language")
-    framework_preferences: List[str] = Field(
-        default_factory=list, description="Preferred frameworks and libraries"
+    complexity_assessment: Dict[str, Any] = Field(
+        default_factory=dict, description="Project complexity assessment"
+    )
+    scope_definition: Dict[str, Any] = Field(
+        default_factory=dict, description="Project scope definition"
+    )
+    estimated_timeline_days: int = Field(..., description="Estimated timeline in days")
+    key_assumptions: List[str] = Field(
+        default_factory=list, description="Key project assumptions"
+    )
+    success_criteria: List[str] = Field(
+        default_factory=list, description="Project success criteria"
+    )
+    risks_and_mitigation: List[Dict[str, str]] = Field(
+        default_factory=list, description="Identified risks and mitigation strategies"
     )
     created_at: datetime = Field(
         default_factory=datetime.now, description="Creation timestamp"
     )
 
-    @validator("project_name")
+    @field_validator("project_name")
+    @classmethod
     def validate_project_name(cls, v):
         if not v or not v.strip():
             raise ValueError("Project name cannot be empty")
         return v.strip()
 
-    @validator("target_language")
-    def validate_target_language(cls, v):
-        supported_languages = [
-            "python",
-            "javascript",
-            "typescript",
-            "java",
-            "cpp",
-            "c",
-            "go",
-            "rust",
-        ]
-        if v.lower() not in supported_languages:
-            raise ValueError(f"Target language must be one of: {supported_languages}")
-        return v.lower()
+    @field_validator("estimated_timeline_days")
+    @classmethod
+    def validate_timeline(cls, v):
+        if v <= 0:
+            raise ValueError("Estimated timeline must be positive")
+        return v
 
 
 class Interface(BaseModel):
@@ -117,7 +187,8 @@ class Module(BaseModel):
         None, description="Expected file path for the module"
     )
 
-    @validator("name")
+    @field_validator("name")
+    @classmethod
     def validate_module_name(cls, v):
         if not v or not v.strip():
             raise ValueError("Module name cannot be empty")
@@ -158,7 +229,7 @@ class ModuleStructure(BaseModel):
         return True
 
 
-class TestCase(BaseModel):
+class UnitTestCase(BaseModel):
     """Test case definition."""
 
     name: str = Field(..., description="Test case name")
@@ -170,14 +241,20 @@ class TestCase(BaseModel):
     test_type: TestType = Field(..., description="Type of test")
     module_name: str = Field(..., description="Target module name")
 
-    @validator("name")
+    @field_validator("name")
+    @classmethod
     def validate_test_name(cls, v):
         if not v or not v.strip():
             raise ValueError("Test case name cannot be empty")
         return v.strip()
 
 
-class TestPlan(BaseModel):
+# Aliases for backward compatibility
+TestCase = UnitTestCase
+TestingCase = UnitTestCase
+
+
+class UnitTestPlan(BaseModel):
     """Test planning data model."""
 
     module_name: str = Field(..., description="Target module name")
@@ -204,6 +281,11 @@ class TestPlan(BaseModel):
         return [test for test in all_tests if test.test_type == test_type]
 
 
+# Aliases for backward compatibility
+TestPlan = UnitTestPlan
+TestingPlan = UnitTestPlan
+
+
 class CodeArtifact(BaseModel):
     """Generated code artifact."""
 
@@ -218,14 +300,15 @@ class CodeArtifact(BaseModel):
         default_factory=datetime.now, description="Creation timestamp"
     )
 
-    @validator("file_path")
+    @field_validator("file_path")
+    @classmethod
     def validate_file_path(cls, v):
         if not v or not v.strip():
             raise ValueError("File path cannot be empty")
         return v.strip()
 
 
-class TestResult(BaseModel):
+class UnitTestResult(BaseModel):
     """Test execution result."""
 
     test_name: str = Field(..., description="Name of the executed test")
@@ -241,6 +324,11 @@ class TestResult(BaseModel):
     created_at: datetime = Field(
         default_factory=datetime.now, description="Execution timestamp"
     )
+
+
+# Aliases for backward compatibility
+TestResult = UnitTestResult
+TestingResult = UnitTestResult
 
 
 class WorkflowState(BaseModel):
@@ -300,7 +388,8 @@ class AgentOutput(BaseModel):
         default_factory=datetime.now, description="Creation timestamp"
     )
 
-    @validator("agent_name")
+    @field_validator("agent_name")
+    @classmethod
     def validate_agent_name(cls, v):
         if not v or not v.strip():
             raise ValueError("Agent name cannot be empty")

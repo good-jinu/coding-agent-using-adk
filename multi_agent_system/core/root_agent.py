@@ -250,7 +250,7 @@ are properly executed and integrated.
 
             # Add project context if available
             if project_context:
-                deliverables["project_context"] = project_context.dict()
+                deliverables["project_context"] = project_context.model_dump()
 
             return deliverables
 
