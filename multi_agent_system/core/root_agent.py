@@ -8,8 +8,9 @@ import logging
 
 from .base_agent import BaseMultiAgent, AgentExecutionError, ValidationError
 from .coordinator import MultiAgentCoordinator
-from .agent_registry import get_global_registry
-from .data_store import get_global_data_store
+from .agent_registry import get_global_registry, AgentRegistry
+from .data_store import get_global_data_store, SharedDataStore
+
 
 load_dotenv()
 
@@ -20,17 +21,27 @@ logger = logging.getLogger(__name__)
 class RootAgent(BaseMultiAgent):
     """
     Root agent that orchestrates the entire multi-agent coding workflow.
-    
+
     This agent serves as the main entry point and coordinator for the multi-agent system,
     managing the complete software development lifecycle from planning to implementation.
     """
-    
-    def __init__(self):
+
+    # Pydantic model fields
+    coordinator: MultiAgentCoordinator = {"default_factory": MultiAgentCoordinator}
+    registry: AgentRegistry = {"default_factory": get_global_registry}
+    data_store: SharedDataStore = {"default_factory": get_global_data_store}
+
+    def __init__(self, **data):
         """Initialize the root agent."""
-        super().__init__(
-            name="RootAgent",
-            description="Orchestrates multi-agent software development workflows from planning to implementation",
-            instruction="""
+        # Set default values for the RootAgent
+        data.setdefault("name", "RootAgent")
+        data.setdefault(
+            "description",
+            "Orchestrates multi-agent software development workflows from planning to implementation",
+        )
+        data.setdefault(
+            "instruction",
+            """
 You are the root coordinator for a comprehensive multi-agent software development system. 
 Your primary responsibility is to orchestrate the complete software development lifecycle 
 through specialized agents working in coordination.
@@ -68,51 +79,51 @@ through specialized agents working in coordination.
 
 Always approach each project systematically, ensuring all phases of development
 are properly executed and integrated.
-            """
+            """,
         )
-        
-        # Initialize coordinator and supporting components
-        self.coordinator = MultiAgentCoordinator()
-        self.registry = get_global_registry()
-        self.data_store = get_global_data_store()
-        
+        super().__init__(**data)
+
         logger.info("RootAgent initialized successfully")
-    
+
     def execute(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Execute the complete multi-agent workflow.
-        
+
         Args:
             input_data: Dictionary containing project description and configuration
-            
+
         Returns:
             Dictionary containing workflow results and deliverables
         """
         try:
             self.log_execution_start(input_data)
-            
+
             # Extract project description
             project_description = input_data.get("description", "")
             workflow_id = input_data.get("workflow_id")
-            
+
             if not project_description:
-                raise ValidationError(self.agent_name, "description", "Project description is required")
-            
+                raise ValidationError(
+                    self.agent_name, "description", "Project description is required"
+                )
+
             # Validate workflow setup
             validation_result = self.coordinator.validate_workflow_setup()
             if not validation_result["valid"]:
                 raise AgentExecutionError(
                     self.agent_name,
-                    f"Workflow validation failed: {validation_result['errors']}"
+                    f"Workflow validation failed: {validation_result['errors']}",
                 )
-            
+
             # Execute the workflow
-            self.logger.info(f"Starting workflow execution for project: {project_description[:100]}...")
+            self.logger.info(
+                f"Starting workflow execution for project: {project_description[:100]}..."
+            )
             result = self.coordinator.execute_workflow(project_description, workflow_id)
-            
+
             # Collect deliverables
             deliverables = self._collect_deliverables(result.workflow_id)
-            
+
             # Format final output
             output = {
                 "success": result.success,
@@ -122,23 +133,23 @@ are properly executed and integrated.
                 "execution_time": result.execution_time,
                 "error_message": result.error_message,
                 "deliverables": deliverables,
-                "summary": self._generate_workflow_summary(result, deliverables)
+                "summary": self._generate_workflow_summary(result, deliverables),
             }
-            
+
             self.log_execution_end(output)
             return output
-            
+
         except Exception as e:
             self.log_error(e, "Workflow execution failed")
             raise AgentExecutionError(self.agent_name, str(e), e)
-    
+
     def validate_input(self, input_data: Dict[str, Any]) -> bool:
         """
         Validate input data for the root agent.
-        
+
         Args:
             input_data: Input data to validate
-            
+
         Returns:
             True if input is valid, False otherwise
         """
@@ -147,72 +158,76 @@ are properly executed and integrated.
             if not isinstance(input_data, dict):
                 self.logger.error("Input data must be a dictionary")
                 return False
-            
+
             # Check for project description
             description = input_data.get("description")
             if not description or not isinstance(description, str):
-                self.logger.error("Project description is required and must be a string")
+                self.logger.error(
+                    "Project description is required and must be a string"
+                )
                 return False
-            
+
             if len(description.strip()) < 10:
-                self.logger.error("Project description must be at least 10 characters long")
+                self.logger.error(
+                    "Project description must be at least 10 characters long"
+                )
                 return False
-            
+
             # Validate optional workflow_id
             workflow_id = input_data.get("workflow_id")
             if workflow_id is not None and not isinstance(workflow_id, str):
                 self.logger.error("Workflow ID must be a string if provided")
                 return False
-            
+
             return True
-            
+
         except Exception as e:
             self.logger.error(f"Input validation error: {e}")
             return False
-    
+
     def format_output(self, result: Any) -> Dict[str, Any]:
         """
         Format the execution result for output.
-        
+
         Args:
             result: Raw execution result
-            
+
         Returns:
             Formatted output dictionary
         """
         if isinstance(result, dict):
             return result
-        
+
         # If result is not a dict, wrap it
         return {
             "result": result,
             "agent": self.agent_name,
-            "timestamp": self.data_store.get_current_timestamp()
+            "timestamp": self.data_store.get_current_timestamp(),
         }
-    
+
     def get_workflow_progress(self) -> Optional[Dict[str, Any]]:
         """Get current workflow progress."""
         return self.coordinator.get_workflow_progress()
-    
+
     def cancel_workflow(self) -> bool:
         """Cancel the currently running workflow."""
         return self.coordinator.cancel_workflow()
-    
+
     def _collect_deliverables(self, workflow_id: str) -> Dict[str, Any]:
         """
         Collect all deliverables produced by the workflow.
-        
+
         Args:
             workflow_id: ID of the completed workflow
-            
+
         Returns:
             Dictionary containing all workflow deliverables
         """
         try:
             project_context = self.data_store.get_project_context()
-            
+
             deliverables = {}
-            
+
             # Collect outputs from each agent
             agent_outputs = [
                 ("project_plan", "ProjectPlanningAgent"),
@@ -220,35 +235,39 @@ are properly executed and integrated.
                 ("test_plan", "TestPlanningAgent"),
                 ("code_artifacts", "CodeImplementationAgent"),
                 ("test_results", "TestingAgent"),
-                ("refined_code", "CodeRefinementAgent")
+                ("refined_code", "CodeRefinementAgent"),
             ]
-            
+
             for deliverable_name, agent_name in agent_outputs:
                 try:
                     output = self.data_store.get_agent_output(agent_name)
                     if output:
                         deliverables[deliverable_name] = output
                 except Exception as e:
-                    self.logger.warning(f"Could not collect {deliverable_name} from {agent_name}: {e}")
-            
+                    self.logger.warning(
+                        f"Could not collect {deliverable_name} from {agent_name}: {e}"
+                    )
+
             # Add project context if available
             if project_context:
                 deliverables["project_context"] = project_context.dict()
-            
+
             return deliverables
-            
+
         except Exception as e:
             self.logger.error(f"Failed to collect deliverables: {e}")
             return {"error": f"Failed to collect deliverables: {str(e)}"}
-    
-    def _generate_workflow_summary(self, result, deliverables: Dict[str, Any]) -> Dict[str, Any]:
+
+    def _generate_workflow_summary(
+        self, result, deliverables: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """
         Generate a comprehensive summary of the workflow execution.
-        
+
         Args:
             result: Workflow execution result
             deliverables: Collected deliverables
-            
+
         Returns:
             Dictionary containing workflow summary
         """
@@ -258,24 +277,28 @@ are properly executed and integrated.
             "successful_agents": len(result.completed_agents),
             "failed_agents": len(result.failed_agents),
             "execution_time_seconds": result.execution_time,
-            "deliverables_count": len([d for d in deliverables.values() if d is not None]),
-            "key_deliverables": list(deliverables.keys())
+            "deliverables_count": len(
+                [d for d in deliverables.values() if d is not None]
+            ),
+            "key_deliverables": list(deliverables.keys()),
         }
-        
+
         # Add recommendations based on results
         recommendations = []
-        
+
         if result.failed_agents:
-            recommendations.append(f"Review and address failures in: {', '.join(result.failed_agents)}")
-        
+            recommendations.append(
+                f"Review and address failures in: {', '.join(result.failed_agents)}"
+            )
+
         if "test_results" in deliverables:
             recommendations.append("Review test results and ensure all tests pass")
-        
+
         if "code_artifacts" in deliverables:
             recommendations.append("Conduct code review before deployment")
-        
+
         summary["recommendations"] = recommendations
-        
+
         return summary
 
 
@@ -283,7 +306,7 @@ are properly executed and integrated.
 def create_root_agent() -> RootAgent:
     """
     Factory function to create a root agent instance.
-    
+
     Returns:
         Configured RootAgent instance
     """
@@ -294,7 +317,7 @@ def create_root_agent() -> RootAgent:
 def create_simple_root_agent() -> LlmAgent:
     """
     Create a simple LlmAgent-based root agent for basic usage.
-    
+
     Returns:
         LlmAgent configured as root agent
     """
@@ -324,7 +347,7 @@ and ensuring high-quality code output.
         tools=[
             MCPToolset(
                 connection_params=StdioServerParameters(
-                    command='npx',
+                    command="npx",
                     args=[
                         "-y",
                         "@modelcontextprotocol/server-filesystem",

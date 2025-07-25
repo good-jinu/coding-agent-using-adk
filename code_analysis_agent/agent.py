@@ -12,47 +12,94 @@ GEMINI_MODEL = "gemini-2.5-flash"
 
 class FileAnalysis(BaseModel):
     """개별 파일에 대한 분석 결과."""
+
     file_path: str = Field(description="분석된 파일의 상대 경로")
-    file_type: str = Field(description="파일의 타입 (예: Python, JavaScript, TypeScript, etc.)")
+    file_type: str = Field(
+        description="파일의 타입 (예: Python, JavaScript, TypeScript, etc.)"
+    )
     purpose: str = Field(description="파일의 주요 목적과 기능")
-    key_components: List[str] = Field(default_factory=list, description="파일 내 주요 클래스, 함수, 컴포넌트 목록")
-    dependencies: List[str] = Field(default_factory=list, description="파일이 의존하는 외부 모듈이나 라이브러리")
+    key_components: List[str] = Field(
+        default_factory=list, description="파일 내 주요 클래스, 함수, 컴포넌트 목록"
+    )
+    dependencies: List[str] = Field(
+        default_factory=list, description="파일이 의존하는 외부 모듈이나 라이브러리"
+    )
     complexity_score: int = Field(description="파일의 복잡도 점수 (1-10)", ge=1, le=10)
 
 
 class DirectoryStructure(BaseModel):
     """디렉토리 구조 분석 결과."""
+
     directory_path: str = Field(description="분석된 디렉토리 경로")
-    subdirectories: List[str] = Field(default_factory=list, description="하위 디렉토리 목록")
+    subdirectories: List[str] = Field(
+        default_factory=list, description="하위 디렉토리 목록"
+    )
     files: List[str] = Field(default_factory=list, description="파일 목록")
     total_files: int = Field(description="총 파일 개수")
-    file_types_distribution: Dict[str, int] = Field(default_factory=dict, description="파일 타입별 분포")
+    file_types_distribution: Dict[str, int] = Field(
+        default_factory=dict, description="파일 타입별 분포"
+    )
 
 
 class ProjectAnalysis(BaseModel):
     """전체 프로젝트 분석 결과."""
+
     project_name: str = Field(description="프로젝트 이름")
     root_directory: str = Field(description="루트 디렉토리 경로")
-    project_type: str = Field(description="프로젝트 유형 (web app, API server, library, etc.)")
+    project_type: str = Field(
+        description="프로젝트 유형 (web app, API server, library, etc.)"
+    )
     main_purpose: str = Field(description="프로젝트의 주요 목적과 기능")
     architecture_pattern: str = Field(description="사용된 아키텍처 패턴")
-    key_technologies: List[str] = Field(default_factory=list, description="사용된 주요 기술 스택")
+    key_technologies: List[str] = Field(
+        default_factory=list, description="사용된 주요 기술 스택"
+    )
     directory_structure: DirectoryStructure = Field(description="디렉토리 구조")
-    file_analyses: List[FileAnalysis] = Field(default_factory=list, description="개별 파일 분석 결과")
-    dependencies_summary: Dict[str, List[str]] = Field(default_factory=dict, description="의존성 요약")
-    design_patterns: List[str] = Field(default_factory=list, description="발견된 디자인 패턴")
-    recommendations: List[str] = Field(default_factory=list, description="개선 제안사항")
+    file_analyses: List[FileAnalysis] = Field(
+        default_factory=list, description="개별 파일 분석 결과"
+    )
+    dependencies_summary: Dict[str, List[str]] = Field(
+        default_factory=dict, description="의존성 요약"
+    )
+    design_patterns: List[str] = Field(
+        default_factory=list, description="발견된 디자인 패턴"
+    )
+    recommendations: List[str] = Field(
+        default_factory=list, description="개선 제안사항"
+    )
 
 
 class CodeAnalysisRequest(BaseModel):
     """코드 분석 요청 모델."""
+
     target_directory: str = Field(description="분석할 디렉토리의 절대 경로")
-    analysis_depth: int = Field(default=3, description="분석할 디렉토리 깊이", ge=1, le=10)
+    analysis_depth: int = Field(
+        default=3, description="분석할 디렉토리 깊이", ge=1, le=10
+    )
     include_patterns: List[str] = Field(
-        default_factory=lambda: ["*.py", "*.js", "*.ts", "*.jsx", "*.tsx", "*.java", "*.cpp", "*.c", "*.h"],
-        description="포함할 파일 패턴")
+        default_factory=lambda: [
+            "*.py",
+            "*.js",
+            "*.ts",
+            "*.jsx",
+            "*.tsx",
+            "*.java",
+            "*.cpp",
+            "*.c",
+            "*.h",
+        ],
+        description="포함할 파일 패턴",
+    )
     exclude_patterns: List[str] = Field(
-        default_factory=lambda: ["node_modules", "__pycache__", ".git", "*.pyc", "*.log"], description="제외할 파일/디렉토리 패턴")
+        default_factory=lambda: [
+            "node_modules",
+            "__pycache__",
+            ".git",
+            "*.pyc",
+            "*.log",
+        ],
+        description="제외할 파일/디렉토리 패턴",
+    )
 
 
 # 코드 분석 Agent 정의
@@ -86,7 +133,7 @@ code_analysis_agent = LlmAgent(
     tools=[
         MCPToolset(
             connection_params=StdioServerParameters(
-                command='npx',
+                command="npx",
                 args=[
                     "-y",
                     "@modelcontextprotocol/server-filesystem",
@@ -118,10 +165,7 @@ def analyze_directory(directory_path: str, analysis_depth: int = 3) -> str:
         return f"오류: '{directory_path}'는 디렉토리가 아닙니다."
 
     # 분석 요청 생성
-    analysis_request = CodeAnalysisRequest(
-        target_directory=directory_path,
-        analysis_depth=analysis_depth
-    )
+    CodeAnalysisRequest(target_directory=directory_path, analysis_depth=analysis_depth)
 
     # Agent 실행을 위한 프롬프트 생성
     prompt = f"""
